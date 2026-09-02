@@ -13,8 +13,8 @@ A Drive copy is a new file ID, so it never inherits the source's `IMPORTRANGE` "
 ## File layout
 
 - `Main.js` — public API (`exportSpreadsheetToPdfBlob`, `exportSpreadsheetToPdfFile`) and sheet include/exclude resolution.
-- `SpreadsheetDuplicator.js` — Drive-copy creation and hiding sheets on the copy.
-- `ImportRangeFlattener.js` — IMPORTRANGE detection, the "Loading..." wait, and flattening cells on the copy (see above).
+- `SpreadsheetDuplicator.js` — Drive-copy creation and hiding sheets on the copy. The copy is always placed explicitly in the source file's own parent folder (never Drive's default root) — `DriveUtils.js`'s orphan sweep only searches the source's parent folder(s), so a copy left in root would never get cleaned up.
+- `ImportRangeFlattener.js` — IMPORTRANGE detection, the "Loading..." wait, and flattening cells on the copy (see above). Detection of "still loading" relies on matching the literal string `'Loading...'` (`IMPORTRANGE_LOADING_PLACEHOLDER`) — there's no Apps Script API for calculation status. This is unverified against locale/character variants; treat it as fragile if touching this file.
 - `PdfFetch.js` — builds the `export?format=pdf` query string from `PdfExportOptions` and fetches the PDF bytes.
 - `DriveUtils.js` — saving to a Drive folder, retrying deletes, and sweeping orphaned temp copies left behind by hard-killed executions.
 
