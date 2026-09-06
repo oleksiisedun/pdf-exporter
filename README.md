@@ -71,11 +71,22 @@ const blob = PdfExporter.exportSpreadsheetToPdfBlob({
   importRangeWaitTimeoutMs: 120000,     // wait up to 2 min (default 1 min)
   importRangeWaitPollIntervalMs: 5000,  // check every 5s (default 2s)
 });
+
+// Simple case: export the whole spreadsheet as-is, skipping the Drive copy
+// entirely (no duplicate file, no sheet hiding, no IMPORTRANGE flattening).
+// Not compatible with includeSheets/excludeSheets/beforeExport, since there's
+// no copy for those to act on.
+const blob = PdfExporter.exportSpreadsheetToPdfBlob({
+  spreadsheetId: '...',
+  direct: true,
+});
 ```
 
 `spreadsheetId` is optional — if omitted, the library falls back to `SpreadsheetApp.getActiveSpreadsheet()`, which only resolves when called from a bound script context (a container-bound script or a simple/installable trigger); calling it without `spreadsheetId` from a standalone script or webapp throws.
 
 `includeSheets` and `excludeSheets` are mutually exclusive — pass at most one. Passing neither exports every sheet. The exported file name is always the spreadsheet's name (or the `fileName` option, if given) with the current date/time appended in `DD.MM.YYYY HH:MM` format, using the source spreadsheet's own time zone.
+
+`direct: true` skips the Drive-copy step and exports the source spreadsheet directly — faster for simple cases that don't need sheet include/exclude or a `beforeExport` hook, since there's no copy for those to act on (combining `direct` with any of them throws). The `IMPORTRANGE` "still loading" wait still applies in direct mode (no flattening is needed, since the source already holds its own access grant), but the temp-file duplication, hiding, flattening, and orphan sweep are all skipped.
 
 ### Required scopes in the consuming project
 
@@ -108,6 +119,8 @@ Passed as `pdfOptions` (see `PdfFetch.js` for the full `PdfExportOptions` typede
 
 The source spreadsheet is **never mutated**. The library waits for any pending `IMPORTRANGE` on the source to settle, then duplicates it in Drive, hides the excluded sheets on the copy (Google's PDF export endpoint omits hidden sheets — hiding rather than deleting keeps any formula on a visible sheet that references an "excluded" one intact), flattens `IMPORTRANGE` cells on the copy to values read from the source, runs the optional `beforeExport` hook against the copy, fetches the real `.pdf` bytes via Google's native `/export?format=pdf` endpoint, then deletes the temporary copy (retrying on transient failures) — in a `finally`, so it happens even if `beforeExport` or the fetch throws.
 
+With `direct: true`, all of that except the `IMPORTRANGE` wait is skipped: there's no duplicate, no hiding, no flattening, no `beforeExport`, and no orphan sweep — the library fetches the `.pdf` bytes straight from the source spreadsheet's own file ID.
+
 Because Apps Script can hard-kill an execution (the 6-minute timeout, or a manual stop from the Executions dashboard) without ever running its `finally` block, a temp copy can occasionally be left behind with no code able to clean it up. Every export call opportunistically sweeps the source file's parent folders for its own leftover `__pdf_export_tmp__`-prefixed copies older than 15 minutes and trashes them, so orphans from a previous killed run get cleaned up on the next export rather than accumulating indefinitely.
 
 The export URL is always built internally from the resolved spreadsheet's file ID, in `PdfFetch.js` — a caller can never inject an arbitrary host through `pdfOptions`, so there's no host-allowlist check needed.
@@ -119,17 +132,20 @@ graph TD
   subgraph Lib["pdf-exporter library"]
     Main --> Resolve["resolveIncludedSheetNames()"]
     Main --> Wait["ImportRangeFlattener.js\nwaitForImportRangesToSettle()"]
-    Wait --> Dup["SpreadsheetDuplicator.js\nduplicate + hide excluded sheets"]
+    Wait -->|"direct: true"| DirectFetch["PdfFetch.js\nfetchPdfBlob(source)"]
+    Wait -->|"default"| Dup["SpreadsheetDuplicator.js\nduplicate + hide excluded sheets"]
     Dup --> Flatten["ImportRangeFlattener.js\nflattenImportRangeCells()"]
     Flatten --> Hook["options.beforeExport(dupSpreadsheet)"]
-    Hook --> Fetch["PdfFetch.js\nfetchPdfBlob()"]
+    Hook --> Fetch["PdfFetch.js\nfetchPdfBlob(copy)"]
     Main --> Save["DriveUtils.js\nsaveBlobToDriveFolder()"]
   end
 
   Dup --> DriveCopy[("Temporary Drive copy")]
   Fetch --> ExportEndpoint[("docs.google.com/.../export?format=pdf")]
+  DirectFetch --> ExportEndpoint
   DriveCopy --> ExportEndpoint
   Fetch --> Main
+  DirectFetch --> Main
   Main -->|"Blob"| Caller
   Save --> DriveFolder[("Destination Drive folder")]
 ```
@@ -151,5 +167,7 @@ Before duplicating, the library scans every included sheet's formulas for any ce
 There's no automated test framework in Apps Script. Test manually from the Apps Script editor: call `exportSpreadsheetToPdfFile({ spreadsheetId, excludeSheets: [...] }, folderId)` (and a run using `beforeExport`) against a scratch spreadsheet, then open the result. Confirm the sheet passed via `excludeSheets` is absent from the PDF, any `beforeExport` change (e.g. a collapsed row group) is reflected, and the original spreadsheet is completely unchanged afterward.
 
 Also worth checking once: throw an error inside a `beforeExport` callback and confirm the temporary Drive copy is still deleted (the `finally` in `exportSpreadsheetToPdfBlob` covers it) and the error propagates to the caller.
+
+To verify `direct: true`, call it against a scratch spreadsheet and confirm the PDF matches a manual `File > Download > PDF` of the whole spreadsheet, no temporary Drive file ever appears (even briefly) in the parent folder, and passing it together with `includeSheets`, `excludeSheets`, or `beforeExport` throws.
 
 To verify `IMPORTRANGE` handling, add a sheet with a single-cell `IMPORTRANGE` and one importing a multi-row/column range from another spreadsheet you own. Export and confirm both render real data in the PDF, not an access-denied error. To verify the wait, trigger a re-import (e.g. edit the source range) and immediately run the export with a generous `importRangeWaitTimeoutMs`; confirm it waits and the real values land in the output. With a very small `importRangeWaitTimeoutMs`, confirm it throws, naming the correct sheet and cell.

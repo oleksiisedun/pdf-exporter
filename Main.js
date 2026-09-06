@@ -13,28 +13,35 @@ const PDF_EXPORT_TEMP_FILE_PREFIX = '__pdf_export_tmp__';
  * @property {string[]} [excludeSheets] - Sheet names to exclude. Mutually exclusive with includeSheets.
  * @property {string} [fileName] - Base file name (no extension) for the export; defaults to the source spreadsheet's name. The current date/time is always appended.
  * @property {PdfExportOptions} [pdfOptions] - PDF rendering options (paper size, margins, ...). See PdfFetch.js.
- * @property {function(GoogleAppsScript.Spreadsheet.Spreadsheet): void} [beforeExport] - Optional hook invoked on the temporary Drive copy, after excluded sheets are hidden and IMPORTRANGE cells are flattened, but before the PDF is fetched. Use it for any prep beyond whole-sheet include/exclude — collapsing row/column groups, toggling a display flag, etc. Runs against the copy, never the source.
+ * @property {function(GoogleAppsScript.Spreadsheet.Spreadsheet): void} [beforeExport] - Optional hook invoked on the temporary Drive copy, after excluded sheets are hidden and IMPORTRANGE cells are flattened, but before the PDF is fetched. Use it for any prep beyond whole-sheet include/exclude — collapsing row/column groups, toggling a display flag, etc. Runs against the copy, never the source. Not allowed together with `direct: true` — there is no copy for it to run against.
  * @property {number} [importRangeWaitTimeoutMs] - Max time (ms) to wait for pending IMPORTRANGE calculations on the source to settle before exporting. Defaults to 60000 (1 min). Pass 0 to skip the wait entirely.
  * @property {number} [importRangeWaitPollIntervalMs] - Delay (ms) between IMPORTRANGE status re-checks while waiting. Defaults to 2000 (2s).
+ * @property {boolean} [direct] - Skip the Drive-copy step entirely and export the source spreadsheet as-is: no duplicate file, no sheet hiding, no IMPORTRANGE flattening, no `beforeExport`. Faster for simple cases that don't need include/exclude or pre-export prep. Since there's no copy to hide sheets on, this is mutually exclusive with `includeSheets`, `excludeSheets`, and `beforeExport`. IMPORTRANGE cells work fine here since the source already holds its own access grant — only the still-loading wait (`importRangeWaitTimeoutMs`) still applies, to avoid capturing a "Loading..." placeholder in the PDF.
  */
 
 /**
- * Exports a Google Sheets spreadsheet to a PDF Blob. The source spreadsheet is
- * only ever read, never mutated — all changes (hiding excluded sheets,
- * flattening IMPORTRANGE cells, anything done in `beforeExport`) happen on a
- * temporary Drive copy, which is deleted afterward even if an error occurs.
+ * Exports a Google Sheets spreadsheet to a PDF Blob.
+ *
+ * By default (`direct` not set), the source spreadsheet is only ever read,
+ * never mutated — all changes (hiding excluded sheets, flattening IMPORTRANGE
+ * cells, anything done in `beforeExport`) happen on a temporary Drive copy,
+ * which is deleted afterward even if an error occurs.
  *
  * IMPORTRANGE cells are flattened to a static value read from the source
  * because IMPORTRANGE's cross-spreadsheet access grant is tied to the
  * specific destination file ID: the duplicate is a brand-new file that was
  * never granted access, so its own live evaluation would render as an
  * access-denied error instead of data. See ImportRangeFlattener.js.
+ *
+ * Pass `direct: true` to skip the copy entirely and export the source
+ * spreadsheet as-is, for simple cases that don't need sheet include/exclude
+ * or a `beforeExport` hook.
  * @param {ExportPdfOptions} options
  * @returns {GoogleAppsScript.Base.Blob}
  */
 function exportSpreadsheetToPdfBlob(options) {
   const {
-    spreadsheetId, includeSheets, excludeSheets, fileName, pdfOptions, beforeExport,
+    spreadsheetId, includeSheets, excludeSheets, fileName, pdfOptions, beforeExport, direct,
     importRangeWaitTimeoutMs, importRangeWaitPollIntervalMs,
   } = options || {};
 
@@ -42,6 +49,18 @@ function exportSpreadsheetToPdfBlob(options) {
   if (!sourceSs) {
     throw new Error('exportSpreadsheetToPdfBlob: options.spreadsheetId was not provided and there is no active spreadsheet.');
   }
+
+  if (direct) {
+    if ((includeSheets && includeSheets.length) || (excludeSheets && excludeSheets.length) || beforeExport) {
+      throw new Error('exportSpreadsheetToPdfBlob: direct: true cannot be combined with includeSheets, excludeSheets, or beforeExport — there is no Drive copy for these to act on.');
+    }
+    const allSheetNames = sourceSs.getSheets().map((s) => s.getName());
+    waitForImportRangesToSettle(sourceSs, allSheetNames, importRangeWaitTimeoutMs, importRangeWaitPollIntervalMs);
+    const baseFileName = fileName || sourceSs.getName();
+    const timestampedFileName = buildTimestampedFileName(baseFileName, sourceSs.getSpreadsheetTimeZone());
+    return fetchPdfBlob(sourceSs.getId(), pdfOptions).setName(`${timestampedFileName}.pdf`);
+  }
+
   const resolvedSpreadsheetId = sourceSs.getId();
   const allSheetNames = sourceSs.getSheets().map((s) => s.getName());
   const includedSheetNames = resolveIncludedSheetNames(allSheetNames, includeSheets, excludeSheets);
