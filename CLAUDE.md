@@ -20,6 +20,16 @@ A Drive copy is a new file ID, so it never inherits the source's `IMPORTRANGE` "
 - `PdfFetch.js` — builds the `export?format=pdf` query string from `PdfExportOptions` and fetches the PDF bytes.
 - `DriveUtils.js` — saving to a Drive folder, retrying deletes, and sweeping orphaned temp copies left behind by hard-killed executions.
 
+## Commands
+
+```bash
+clasp open   # Open this project in the Apps Script editor
+clasp push   # Push local changes to Apps Script (requires confirmation — see Deploying)
+clasp pull   # Pull changes made in the Apps Script editor back to local files
+```
+
+Cutting a new library deployment (**Deploy > New deployment** in the Apps Script editor) is a manual UI step with no `clasp` equivalent — see README.md's "Deploying the library" section.
+
 ## Testing
 
 No automated test framework in Apps Script. Test manually from the Apps Script editor — see README.md's "Testing" section for the checklist.
