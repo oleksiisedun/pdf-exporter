@@ -29,6 +29,21 @@ function formulaCallsImportRange(formula) {
 }
 
 /**
+ * Like Spreadsheet.getSheetByName, but throws a descriptive error instead of
+ * returning null when the sheet doesn't exist.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet
+ * @param {string} sheetName
+ * @returns {GoogleAppsScript.Spreadsheet.Sheet}
+ */
+function getSheetOrThrow(spreadsheet, sheetName) {
+  const sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    throw new Error(`getSheetOrThrow: sheet "${sheetName}" not found in spreadsheet "${spreadsheet.getName()}".`);
+  }
+  return sheet;
+}
+
+/**
  * Bulk-reads a sheet's data range once and locates every cell whose own
  * formula calls IMPORTRANGE, alongside the formulas/values grids so callers
  * don't need to re-fetch them.
@@ -107,20 +122,20 @@ function findImportRangeSpillRegions(sheet) {
  */
 function flattenImportRangeCells(sourceSpreadsheet, duplicateSpreadsheet, includedSheetNames) {
   const perSheetRegions = includedSheetNames
-    .map((sheetName) => ({ sheetName, regions: findImportRangeSpillRegions(sourceSpreadsheet.getSheetByName(sheetName)) }))
+    .map((sheetName) => ({ sheetName, regions: findImportRangeSpillRegions(getSheetOrThrow(sourceSpreadsheet, sheetName)) }))
     .filter(({ regions }) => regions.length > 0);
 
   if (perSheetRegions.length === 0) return;
 
   perSheetRegions.forEach(({ sheetName, regions }) => {
-    const dupSheet = duplicateSpreadsheet.getSheetByName(sheetName);
+    const dupSheet = getSheetOrThrow(duplicateSpreadsheet, sheetName);
     regions.forEach(({ row, col }) => dupSheet.getRange(row + 1, col + 1).clearContent());
   });
   SpreadsheetApp.flush();
 
   perSheetRegions.forEach(({ sheetName, regions }) => {
-    const sourceSheet = sourceSpreadsheet.getSheetByName(sheetName);
-    const dupSheet = duplicateSpreadsheet.getSheetByName(sheetName);
+    const sourceSheet = getSheetOrThrow(sourceSpreadsheet, sheetName);
+    const dupSheet = getSheetOrThrow(duplicateSpreadsheet, sheetName);
     regions.forEach(({ row, col, numRows, numCols }) => {
       const values = sourceSheet.getRange(row + 1, col + 1, numRows, numCols).getValues();
       dupSheet.getRange(row + 1, col + 1, numRows, numCols).setValues(values);
@@ -170,7 +185,7 @@ function waitForImportRangesToSettle(sourceSpreadsheet, includedSheetNames, time
  */
 function findImportRangeAnchorStillLoading(sourceSpreadsheet, includedSheetNames) {
   for (const sheetName of includedSheetNames) {
-    const sheet = sourceSpreadsheet.getSheetByName(sheetName);
+    const sheet = getSheetOrThrow(sourceSpreadsheet, sheetName);
     const { values, anchors } = scanImportRangeAnchors(sheet);
     for (const { row, col } of anchors) {
       if (values[row][col] === IMPORTRANGE_LOADING_PLACEHOLDER) {
