@@ -48,7 +48,8 @@ function buildPdfExportOptionsQueryString(pdfOptions) {
   };
 
   return Object.entries(params)
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}=${encodeURIComponent(/** @type {string|number|boolean} */ (value))}`)
     .join('&');
 }
 
