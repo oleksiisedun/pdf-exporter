@@ -2,6 +2,15 @@
   "name": "pdf-exporter",
   "private": true,
   "devDependencies": {
-    "@types/google-apps-script": "^2.0.13"
+    "@eslint/js": "^10.0.1",
+    "@types/google-apps-script": "^2.0.13",
+    "eslint": "^10.11.0",
+    "eslint-plugin-googleappsscript": "^1.0.5",
+    "typescript": "^7.0.2"
+  },
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc -p jsconfig.json",
+    "check": "npm run lint && npm run typecheck"
   }
 }
