@@ -48,6 +48,14 @@ const blob = PdfExporter.exportSpreadsheetToPdfBlob({
   pdfOptions: { portrait: true, size: 'letter', gridlines: true, margin: 0.25 },
 });
 
+// Hide columns per sheet (by sheet name). Each column is a 1-based index, a
+// column letter, or a letter range. Hidden on the COPY, so formulas that
+// reference those columns keep working.
+const blob = PdfExporter.exportSpreadsheetToPdfBlob({
+  spreadsheetId: '...',
+  hideColumns: { 'Report': [3, 'E:G'], 'Data': ['B'] },
+});
+
 // Run extra prep on the temporary Drive copy before export — e.g. collapsing
 // row/column groups, or anything else beyond whole-sheet include/exclude.
 // Runs against the COPY, never the source spreadsheet.
@@ -74,7 +82,7 @@ const blob = PdfExporter.exportSpreadsheetToPdfBlob({
 
 // Simple case: export the whole spreadsheet as-is, skipping the Drive copy
 // entirely (no duplicate file, no sheet hiding, no IMPORTRANGE flattening).
-// Not compatible with includeSheets/excludeSheets/beforeExport, since there's
+// Not compatible with includeSheets/excludeSheets/hideColumns/beforeExport, since there's
 // no copy for those to act on.
 const blob = PdfExporter.exportSpreadsheetToPdfBlob({
   spreadsheetId: '...',
@@ -86,7 +94,7 @@ const blob = PdfExporter.exportSpreadsheetToPdfBlob({
 
 `includeSheets` and `excludeSheets` are mutually exclusive — pass at most one. Passing neither exports every sheet. The exported file name is always the spreadsheet's name (or the `fileName` option, if given) with the current date/time appended in `DD.MM.YYYY HH:MM` format, using the source spreadsheet's own time zone.
 
-`direct: true` skips the Drive-copy step and exports the source spreadsheet directly — faster for simple cases that don't need sheet include/exclude or a `beforeExport` hook, since there's no copy for those to act on (combining `direct` with any of them throws). The `IMPORTRANGE` "still loading" wait still applies in direct mode (no flattening is needed, since the source already holds its own access grant), but the temp-file duplication, hiding, flattening, and orphan sweep are all skipped.
+`direct: true` skips the Drive-copy step and exports the source spreadsheet directly — faster for simple cases that don't need sheet include/exclude, `hideColumns`, or a `beforeExport` hook, since there's no copy for those to act on (combining `direct` with any of them throws). The `IMPORTRANGE` "still loading" wait still applies in direct mode (no flattening is needed, since the source already holds its own access grant), but the temp-file duplication, hiding, flattening, and orphan sweep are all skipped.
 
 ### Required scopes in the consuming project
 
@@ -164,7 +172,7 @@ Before duplicating, the library scans every included sheet's formulas for any ce
 
 ## Testing
 
-There's no automated test framework in Apps Script. Test manually from the Apps Script editor: call `exportSpreadsheetToPdfFile({ spreadsheetId, excludeSheets: [...] }, folderId)` (and a run using `beforeExport`) against a scratch spreadsheet, then open the result. Confirm the sheet passed via `excludeSheets` is absent from the PDF, any `beforeExport` change (e.g. a collapsed row group) is reflected, and the original spreadsheet is completely unchanged afterward.
+There's no automated test framework in Apps Script. Test manually from the Apps Script editor: call `exportSpreadsheetToPdfFile({ spreadsheetId, excludeSheets: [...] }, folderId)` (and a run using `beforeExport`) against a scratch spreadsheet, then open the result. Confirm the sheet passed via `excludeSheets` is absent from the PDF, columns passed via `hideColumns` (index, letter, and `'E:G'` range forms) are absent while formulas depending on them still show correct values, any `beforeExport` change (e.g. a collapsed row group) is reflected, and the original spreadsheet is completely unchanged afterward.
 
 Also worth checking once: throw an error inside a `beforeExport` callback and confirm the temporary Drive copy is still deleted (the `finally` in `exportSpreadsheetToPdfBlob` covers it) and the error propagates to the caller.
 
