@@ -32,3 +32,27 @@ function hideSheetsByName(spreadsheet, sheetNames) {
     if (sheet) sheet.hideSheet();
   });
 }
+
+/**
+ * Hides columns on the given sheets. Hiding rather than deleting keeps any
+ * formula that references those columns intact, and Google's PDF export
+ * endpoint omits hidden columns from the output.
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet
+ * @param {Object<string, Array<number|string>>} columnsBySheetName - Sheet name → columns to hide. Each column is a 1-based index (`3`), a column letter (`'C'`), or a letter range (`'E:G'`).
+ * @returns {void}
+ */
+function hideColumnsBySheetName(spreadsheet, columnsBySheetName) {
+  Object.entries(columnsBySheetName).forEach(([sheetName, columns]) => {
+    const sheet = spreadsheet.getSheetByName(sheetName);
+    if (!sheet) return;
+    columns.forEach((column) => {
+      if (typeof column === 'number') {
+        sheet.hideColumns(column);
+      } else if (typeof column === 'string') {
+        sheet.hideColumn(sheet.getRange(column.includes(':') ? column : `${column}:${column}`));
+      } else {
+        throw new Error(`exportSpreadsheetToPdfBlob: hideColumns["${sheetName}"] contains an invalid column ${JSON.stringify(column)} — use a 1-based index, a column letter, or a letter range like "E:G".`);
+      }
+    });
+  });
+}
