@@ -28,6 +28,7 @@ Only `src/` is deployed (`.clasp.json` has `"rootDir": "src"`); tooling and docs
 npm run check      # Lint + type check (run after every edit; fast, offline)
 npm run lint       # ESLint only
 npm run typecheck  # tsc checkJs over src/ — resolves cross-file globals against @types/google-apps-script
+npm test           # node --test over tests/unit/ — pure-logic unit tests, run without asking
 clasp open   # Open this project in the Apps Script editor
 clasp push   # Push local changes to Apps Script (requires confirmation — see Deploying)
 clasp pull   # Pull changes made in the Apps Script editor back to local files
@@ -37,7 +38,9 @@ Cutting a new library deployment (**Deploy > New deployment** in the Apps Script
 
 ## Testing
 
-Run `npm run check` after every edit for static checks (`no-undef` is off in ESLint because all files share one global scope — `typecheck` is what catches undefined cross-file references). No automated test framework in Apps Script. Test manually from the Apps Script editor — see README.md's "Testing" section for the checklist.
+Run `npm run check` after every edit for static checks (`no-undef` is off in ESLint because all files share one global scope — `typecheck` is what catches undefined cross-file references).
+
+Unit tests (`npm test`) cover the library's pure logic — sheet include/exclude resolution (`Main.js`), the IMPORTRANGE-formula regex (`ImportRangeFlattener.js`), and PDF query-string building (`PdfFetch.js`). Since `src/*.js` files share one global scope with no imports/exports, `tests/unit/helpers/load-src.js` loads a source file into a `vm` context and pulls out the functions under test — add new pure-logic tests the same way rather than restructuring `src/` to support `require`. Anything that touches `SpreadsheetApp`/`DriveApp`/`UrlFetchApp` still has no automated coverage — test that manually from the Apps Script editor, see README.md's "Testing" section for the checklist.
 
 ## Deploying
 
