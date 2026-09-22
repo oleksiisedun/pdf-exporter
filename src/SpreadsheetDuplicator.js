@@ -1,19 +1,19 @@
 /**
  * Creates a full copy of the source spreadsheet file in Drive, placed
  * explicitly in the source's own parent folder (or Drive's root, if the
- * source has none). Without an explicit destination, `File.makeCopy(name)`
- * drops the copy in the current user's Drive root regardless of where the
- * source lives — which would silently break `cleanUpOrphanedExportTempFiles`
- * in DriveUtils.js, since it searches the source's parent folder(s) for
- * leftover copies and would never find any placed in root instead.
+ * source has none — see getParentFoldersOrRoot in DriveUtils.js). Without an
+ * explicit destination, `File.makeCopy(name)` drops the copy in the current
+ * user's Drive root regardless of where the source lives — which would
+ * silently break `cleanUpOrphanedExportTempFiles` in DriveUtils.js, since it
+ * searches the source's parent folder(s) for leftover copies and would never
+ * find any placed in root instead.
  * @param {string} spreadsheetId
  * @param {string} copyName
  * @returns {GoogleAppsScript.Drive.File}
  */
 function duplicateSpreadsheetFile(spreadsheetId, copyName) {
   const sourceFile = DriveApp.getFileById(spreadsheetId);
-  const parentIterator = sourceFile.getParents();
-  const destinationFolder = parentIterator.hasNext() ? parentIterator.next() : DriveApp.getRootFolder();
+  const [destinationFolder] = getParentFoldersOrRoot(sourceFile);
   return sourceFile.makeCopy(copyName, destinationFolder);
 }
 

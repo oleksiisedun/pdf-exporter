@@ -1,4 +1,19 @@
 /**
+ * Returns a file's parent folders, falling back to Drive's root folder if it
+ * has none. Shared by SpreadsheetDuplicator.js (destination for a new copy)
+ * and cleanUpOrphanedExportTempFiles below (folders to sweep) so both agree
+ * on where a parentless file's copies live.
+ * @param {GoogleAppsScript.Drive.File} file
+ * @returns {GoogleAppsScript.Drive.Folder[]}
+ */
+function getParentFoldersOrRoot(file) {
+  const parentIterator = file.getParents();
+  const parents = [];
+  while (parentIterator.hasNext()) parents.push(parentIterator.next());
+  return parents.length > 0 ? parents : [DriveApp.getRootFolder()];
+}
+
+/**
  * Saves a Blob into a Drive folder, returning the created File.
  * @param {GoogleAppsScript.Base.Blob} blob
  * @param {string} folderId
@@ -55,10 +70,7 @@ function deleteFileWithRetry(fileId, maxAttempts) {
 function cleanUpOrphanedExportTempFiles(spreadsheetId, tempFilePrefix, maxAgeMs) {
   const minAge = maxAgeMs || 15 * 60 * 1000;
   const cutoff = Date.now() - minAge;
-  const parentIterator = DriveApp.getFileById(spreadsheetId).getParents();
-  const parents = [];
-  while (parentIterator.hasNext()) parents.push(parentIterator.next());
-  if (parents.length === 0) parents.push(DriveApp.getRootFolder());
+  const parents = getParentFoldersOrRoot(DriveApp.getFileById(spreadsheetId));
 
   parents.forEach((folder) => {
     const files = folder.getFiles();
