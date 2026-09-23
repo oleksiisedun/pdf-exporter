@@ -68,25 +68,26 @@ function scanImportRangeAnchors(sheet) {
 }
 
 /**
- * Finds every IMPORTRANGE-anchored cell in a sheet's data range and its
- * best-effort spilled output extent. Apps Script's SpreadsheetApp service has
- * no API to query an array formula's result dimensions directly, so this
+ * Computes each IMPORTRANGE anchor's best-effort spilled output extent from
+ * already-read formulas/values grids. Apps Script's SpreadsheetApp service
+ * has no API to query an array formula's result dimensions directly, so this
  * expands right along the anchor's row, then down along the anchor's column,
  * while the next cell has no formula of its own and a non-blank value — the
- * same signal a spilled (not manually typed) cell leaves behind. Uses only
- * the bulk formulas/values grids already read by scanImportRangeAnchors, no
- * additional per-cell API calls.
+ * same signal a spilled (not manually typed) cell leaves behind. Pure
+ * (plain-array) logic, kept separate from scanImportRangeAnchors's Sheet
+ * reads so it can be unit tested directly.
  *
  * Known limitation: if the imported range itself contains a blank cell (a
  * gap in the source data), this under-detects the spill's true extent past
  * that gap. If unrelated non-blank data sits immediately adjacent to the
  * spill with no gap, this over-detects — harmless, since the value written
  * back for an over-detected cell is simply its own current value (a no-op).
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - Must be on the SOURCE spreadsheet (read-only).
+ * @param {string[][]} formulas
+ * @param {any[][]} values
+ * @param {{row:number,col:number}[]} anchors
  * @returns {{row:number,col:number,numRows:number,numCols:number}[]}
  */
-function findImportRangeSpillRegions(sheet) {
-  const { formulas, values, anchors } = scanImportRangeAnchors(sheet);
+function computeImportRangeSpillRegions(formulas, values, anchors) {
   const numDataRows = values.length;
   const numDataCols = numDataRows > 0 ? values[0].length : 0;
 
@@ -99,6 +100,19 @@ function findImportRangeSpillRegions(sheet) {
 
     return { row, col, numRows, numCols };
   });
+}
+
+/**
+ * Finds every IMPORTRANGE-anchored cell in a sheet's data range and its
+ * best-effort spilled output extent (see computeImportRangeSpillRegions).
+ * Uses only the bulk formulas/values grids already read by
+ * scanImportRangeAnchors, no additional per-cell API calls.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - Must be on the SOURCE spreadsheet (read-only).
+ * @returns {{row:number,col:number,numRows:number,numCols:number}[]}
+ */
+function findImportRangeSpillRegions(sheet) {
+  const { formulas, values, anchors } = scanImportRangeAnchors(sheet);
+  return computeImportRangeSpillRegions(formulas, values, anchors);
 }
 
 /**
@@ -169,9 +183,9 @@ function waitForImportRangesToSettle(sourceSpreadsheet, includedSheetNames, time
     if (Date.now() >= deadline) {
       throw new Error(
         `waitForImportRangesToSettle: "${stillLoading.sheetName}"!${stillLoading.a1Notation} still shows ` +
-        `"${IMPORTRANGE_LOADING_PLACEHOLDER}" after waiting ${timeout}ms; aborting export before it bakes that ` +
-        'placeholder into a static value. Pass a larger importRangeWaitTimeoutMs if this import genuinely needs ' +
-        'longer, or importRangeWaitTimeoutMs: 0 to skip this check.'
+          `"${IMPORTRANGE_LOADING_PLACEHOLDER}" after waiting ${timeout}ms; aborting export before it bakes that ` +
+          'placeholder into a static value. Pass a larger importRangeWaitTimeoutMs if this import genuinely needs ' +
+          'longer, or importRangeWaitTimeoutMs: 0 to skip this check.',
       );
     }
     Utilities.sleep(interval);

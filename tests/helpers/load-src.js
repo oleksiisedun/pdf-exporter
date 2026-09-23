@@ -26,4 +26,21 @@ function loadFromSrc(fileName, names) {
   return result;
 }
 
-module.exports = { loadFromSrc };
+/**
+ * A `vm` context is a separate JS realm with its own `Object`/`Array`
+ * constructors, so a plain object or array returned by a function loaded via
+ * loadFromSrc is not `instanceof` this file's `Object` — `assert/strict`'s
+ * `deepEqual` (aliased to `deepStrictEqual`) then reports "same structure but
+ * are not reference-equal" even for identical plain data. Round-tripping
+ * through JSON rebuilds the value using this realm's own built-ins, so
+ * assertions on plain JSON-serializable data (objects/arrays of strings,
+ * numbers, booleans) can compare normally. Only use this for values that are
+ * plain data — it would silently drop functions, undefined, etc.
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+function toPlain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+module.exports = { loadFromSrc, toPlain };
