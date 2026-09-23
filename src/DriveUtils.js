@@ -30,11 +30,11 @@ function saveBlobToDriveFolder(blob, folderId, fileName) {
  * limits, brief API outages) so a temporary export copy isn't left behind
  * just because a single setTrashed() call happened to fail.
  * @param {string} fileId
- * @param {number} [maxAttempts]
+ * @param {number} [maxAttempts] - Defaults to 3. Uses `??`, not `||`, so 0 is a meaningful opt-out.
  * @returns {void}
  */
 function deleteFileWithRetry(fileId, maxAttempts) {
-  const attempts = maxAttempts || 3;
+  const attempts = maxAttempts ?? 3;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       DriveApp.getFileById(fileId).setTrashed(true);
@@ -64,11 +64,11 @@ function deleteFileWithRetry(fileId, maxAttempts) {
  * never touched.
  * @param {string} spreadsheetId - Source spreadsheet whose parent folders to sweep.
  * @param {string} tempFilePrefix - Name prefix identifying this library's temp copies.
- * @param {number} [maxAgeMs] - Minimum age before an orphaned copy is trashed.
+ * @param {number} [maxAgeMs] - Minimum age before an orphaned copy is trashed. Defaults to 900000 (15 min). Uses `??`, not `||`, so 0 is a meaningful opt-out.
  * @returns {void}
  */
 function cleanUpOrphanedExportTempFiles(spreadsheetId, tempFilePrefix, maxAgeMs) {
-  const minAge = maxAgeMs || 15 * 60 * 1000;
+  const minAge = maxAgeMs ?? 15 * 60 * 1000;
   const cutoff = Date.now() - minAge;
   const parents = getParentFoldersOrRoot(DriveApp.getFileById(spreadsheetId));
 
