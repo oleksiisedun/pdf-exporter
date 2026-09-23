@@ -7,6 +7,17 @@
 const PDF_EXPORT_TEMP_FILE_PREFIX = '__pdf_export_tmp__';
 
 /**
+ * Prefix for every error thrown by the public API, so a caller (or an error
+ * log) can always tell which library function raised it. Shared across
+ * source files — e.g. SpreadsheetDuplicator.js's hideColumnsBySheetName
+ * throws on the caller's behalf for an invalid hideColumns entry — so it's
+ * declared once here rather than duplicated as a string literal per throw
+ * site.
+ * @type {string}
+ */
+const EXPORT_ERROR_PREFIX = 'exportSpreadsheetToPdfBlob: ';
+
+/**
  * @typedef {Object} ExportPdfOptions
  * @property {string} [spreadsheetId] - ID of the source Google Sheets spreadsheet. Never mutated. Defaults to the active spreadsheet (SpreadsheetApp.getActiveSpreadsheet()) if omitted — only resolvable when the library is called from a bound script context (e.g. a container-bound script or a simple/installable trigger), not from a standalone script or webapp with no active spreadsheet.
  * @property {string[]} [includeSheets] - Sheet names to include. Mutually exclusive with excludeSheets.
@@ -48,14 +59,14 @@ function exportSpreadsheetToPdfBlob(options) {
 
   const sourceSs = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
   if (!sourceSs) {
-    throw new Error('exportSpreadsheetToPdfBlob: options.spreadsheetId was not provided and there is no active spreadsheet.');
+    throw new Error(`${EXPORT_ERROR_PREFIX}options.spreadsheetId was not provided and there is no active spreadsheet.`);
   }
 
   const hasHideColumns = !!hideColumns && Object.keys(hideColumns).length > 0;
 
   if (direct) {
     if ((includeSheets && includeSheets.length) || (excludeSheets && excludeSheets.length) || hasHideColumns || beforeExport) {
-      throw new Error('exportSpreadsheetToPdfBlob: direct: true cannot be combined with includeSheets, excludeSheets, hideColumns, or beforeExport — there is no Drive copy for these to act on.');
+      throw new Error(`${EXPORT_ERROR_PREFIX}direct: true cannot be combined with includeSheets, excludeSheets, hideColumns, or beforeExport — there is no Drive copy for these to act on.`);
     }
     const allSheetNames = getAllSheetNames(sourceSs);
     waitForImportRangesToSettle(sourceSs, allSheetNames, importRangeWaitTimeoutMs, importRangeWaitPollIntervalMs);
@@ -135,7 +146,7 @@ function resolveIncludedSheetNames(allSheetNames, includeSheets, excludeSheets) 
   const hasInclude = Array.isArray(includeSheets) && includeSheets.length > 0;
   const hasExclude = Array.isArray(excludeSheets) && excludeSheets.length > 0;
   if (hasInclude && hasExclude) {
-    throw new Error('exportSpreadsheetToPdfBlob: pass either includeSheets or excludeSheets, not both.');
+    throw new Error(`${EXPORT_ERROR_PREFIX}pass either includeSheets or excludeSheets, not both.`);
   }
 
   const allSet = new Set(allSheetNames);
@@ -148,7 +159,7 @@ function resolveIncludedSheetNames(allSheetNames, includeSheets, excludeSheets) 
   const excludeSet = new Set(excludeSheets || []);
   const included = allSheetNames.filter((name) => !excludeSet.has(name));
   if (included.length === 0) {
-    throw new Error('exportSpreadsheetToPdfBlob: resulting included-sheet set is empty.');
+    throw new Error(`${EXPORT_ERROR_PREFIX}resulting included-sheet set is empty.`);
   }
   return included;
 }
@@ -162,6 +173,6 @@ function resolveIncludedSheetNames(allSheetNames, includeSheets, excludeSheets) 
 function assertSheetNamesExist(names, allSheetNamesSet, optionLabel) {
   const missing = names.filter((name) => !allSheetNamesSet.has(name));
   if (missing.length > 0) {
-    throw new Error(`exportSpreadsheetToPdfBlob: ${optionLabel} contains unknown sheet name(s): ${missing.join(', ')}`);
+    throw new Error(`${EXPORT_ERROR_PREFIX}${optionLabel} contains unknown sheet name(s): ${missing.join(', ')}`);
   }
 }
