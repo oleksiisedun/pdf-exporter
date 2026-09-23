@@ -57,7 +57,7 @@ function exportSpreadsheetToPdfBlob(options) {
     if ((includeSheets && includeSheets.length) || (excludeSheets && excludeSheets.length) || hasHideColumns || beforeExport) {
       throw new Error('exportSpreadsheetToPdfBlob: direct: true cannot be combined with includeSheets, excludeSheets, hideColumns, or beforeExport — there is no Drive copy for these to act on.');
     }
-    const allSheetNames = sourceSs.getSheets().map((s) => s.getName());
+    const allSheetNames = getAllSheetNames(sourceSs);
     waitForImportRangesToSettle(sourceSs, allSheetNames, importRangeWaitTimeoutMs, importRangeWaitPollIntervalMs);
     const baseFileName = fileName || sourceSs.getName();
     const timestampedFileName = buildTimestampedFileName(baseFileName, sourceSs.getSpreadsheetTimeZone());
@@ -65,7 +65,7 @@ function exportSpreadsheetToPdfBlob(options) {
   }
 
   const resolvedSpreadsheetId = sourceSs.getId();
-  const allSheetNames = sourceSs.getSheets().map((s) => s.getName());
+  const allSheetNames = getAllSheetNames(sourceSs);
   const includedSheetNames = resolveIncludedSheetNames(allSheetNames, includeSheets, excludeSheets);
   const excludedSheetNames = allSheetNames.filter((n) => !includedSheetNames.includes(n));
   if (hasHideColumns) assertSheetNamesExist(Object.keys(hideColumns), new Set(allSheetNames), 'hideColumns');
@@ -112,6 +112,14 @@ function exportSpreadsheetToPdfFile(options, folderId, fileName) {
 function buildTimestampedFileName(baseFileName, timeZone) {
   const timestamp = Utilities.formatDate(new Date(), timeZone, 'dd.MM.yyyy HH:mm');
   return `${baseFileName} ${timestamp}`;
+}
+
+/**
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet
+ * @returns {string[]} Sheet names in the spreadsheet's own tab order.
+ */
+function getAllSheetNames(spreadsheet) {
+  return spreadsheet.getSheets().map((s) => s.getName());
 }
 
 /**
