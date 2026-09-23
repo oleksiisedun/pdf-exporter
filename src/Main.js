@@ -71,7 +71,7 @@ function exportSpreadsheetToPdfBlob(options) {
     const allSheetNames = getAllSheetNames(sourceSs);
     waitForImportRangesToSettle(sourceSs, allSheetNames, importRangeWaitTimeoutMs, importRangeWaitPollIntervalMs);
     const baseFileName = fileName || sourceSs.getName();
-    const timestampedFileName = buildTimestampedFileName(baseFileName, sourceSs.getSpreadsheetTimeZone());
+    const timestampedFileName = buildTimestampedFileName(new Date(), baseFileName, sourceSs.getSpreadsheetTimeZone());
     return fetchPdfBlob(sourceSs.getId(), pdfOptions).setName(`${timestampedFileName}.pdf`);
   }
 
@@ -84,7 +84,7 @@ function exportSpreadsheetToPdfBlob(options) {
   waitForImportRangesToSettle(sourceSs, includedSheetNames, importRangeWaitTimeoutMs, importRangeWaitPollIntervalMs);
 
   const baseFileName = fileName || sourceSs.getName();
-  const timestampedFileName = buildTimestampedFileName(baseFileName, sourceSs.getSpreadsheetTimeZone());
+  const timestampedFileName = buildTimestampedFileName(new Date(), baseFileName, sourceSs.getSpreadsheetTimeZone());
 
   cleanUpOrphanedExportTempFiles(resolvedSpreadsheetId, PDF_EXPORT_TEMP_FILE_PREFIX);
   const copiedFile = duplicateSpreadsheetFile(resolvedSpreadsheetId, `${PDF_EXPORT_TEMP_FILE_PREFIX}${baseFileName}__${Date.now()}`);
@@ -115,14 +115,41 @@ function exportSpreadsheetToPdfFile(options, folderId, fileName) {
 }
 
 /**
- * Appends the current date/time to a base file name, in DD.MM.YYYY HH:MM format.
+ * Formats a date as "dd.MM.yyyy HH:mm" in the given IANA time zone, using
+ * `Intl.DateTimeFormat` rather than `Utilities.formatDate` — `Intl` is
+ * available in both the Apps Script V8 runtime and plain Node, so this stays
+ * pure logic that can be unit tested with a fixed date, instead of depending
+ * on an Apps Script service.
+ * @param {Date} date
+ * @param {string} timeZone - IANA time zone, e.g. from Spreadsheet.getSpreadsheetTimeZone().
+ * @returns {string}
+ */
+function formatDateDdMmYyyyHhMm(date, timeZone) {
+  const partValues = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date).map((part) => [part.type, part.value])
+  );
+  return `${partValues.day}.${partValues.month}.${partValues.year} ${partValues.hour}:${partValues.minute}`;
+}
+
+/**
+ * Appends a date/time to a base file name, in DD.MM.YYYY HH:MM format. Takes
+ * `date` as a parameter (rather than reading `new Date()` internally) so this
+ * pure formatting logic can be unit tested with a fixed date.
+ * @param {Date} date
  * @param {string} baseFileName
  * @param {string} timeZone - IANA time zone, e.g. from Spreadsheet.getSpreadsheetTimeZone().
  * @returns {string}
  */
-function buildTimestampedFileName(baseFileName, timeZone) {
-  const timestamp = Utilities.formatDate(new Date(), timeZone, 'dd.MM.yyyy HH:mm');
-  return `${baseFileName} ${timestamp}`;
+function buildTimestampedFileName(date, baseFileName, timeZone) {
+  return `${baseFileName} ${formatDateDdMmYyyyHhMm(date, timeZone)}`;
 }
 
 /**
