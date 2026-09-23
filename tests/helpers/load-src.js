@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const SRC_DIR = path.join(__dirname, '..', '..', '..', 'src');
+const SRC_DIR = path.join(__dirname, '..', '..', 'src');
 
 /**
  * Loads a src/*.js file — a plain Apps Script script with no imports/exports,
