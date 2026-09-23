@@ -53,8 +53,16 @@ const EXPORT_ERROR_PREFIX = 'exportSpreadsheetToPdfBlob: ';
  */
 function exportSpreadsheetToPdfBlob(options) {
   const {
-    spreadsheetId, includeSheets, excludeSheets, hideColumns, fileName, pdfOptions, beforeExport, direct,
-    importRangeWaitTimeoutMs, importRangeWaitPollIntervalMs,
+    spreadsheetId,
+    includeSheets,
+    excludeSheets,
+    hideColumns,
+    fileName,
+    pdfOptions,
+    beforeExport,
+    direct,
+    importRangeWaitTimeoutMs,
+    importRangeWaitPollIntervalMs,
   } = options || {};
 
   const sourceSs = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
@@ -66,7 +74,9 @@ function exportSpreadsheetToPdfBlob(options) {
 
   if (direct) {
     if ((includeSheets && includeSheets.length) || (excludeSheets && excludeSheets.length) || hasHideColumns || beforeExport) {
-      throw new Error(`${EXPORT_ERROR_PREFIX}direct: true cannot be combined with includeSheets, excludeSheets, hideColumns, or beforeExport — there is no Drive copy for these to act on.`);
+      throw new Error(
+        `${EXPORT_ERROR_PREFIX}direct: true cannot be combined with includeSheets, excludeSheets, hideColumns, or beforeExport — there is no Drive copy for these to act on.`,
+      );
     }
     const allSheetNames = getAllSheetNames(sourceSs);
     waitForImportRangesToSettle(sourceSs, allSheetNames, importRangeWaitTimeoutMs, importRangeWaitPollIntervalMs);
@@ -134,7 +144,9 @@ function formatDateDdMmYyyyHhMm(date, timeZone) {
       hour: '2-digit',
       minute: '2-digit',
       hourCycle: 'h23',
-    }).formatToParts(date).map((part) => [part.type, part.value])
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
   );
   return `${partValues.day}.${partValues.month}.${partValues.year} ${partValues.hour}:${partValues.minute}`;
 }

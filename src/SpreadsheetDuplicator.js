@@ -51,7 +51,9 @@ function hideColumnsBySheetName(spreadsheet, columnsBySheetName) {
       } else if (typeof column === 'string') {
         sheet.hideColumn(sheet.getRange(column.includes(':') ? column : `${column}:${column}`));
       } else {
-        throw new Error(`${EXPORT_ERROR_PREFIX}hideColumns["${sheetName}"] contains an invalid column ${JSON.stringify(column)} — use a 1-based index, a column letter, or a letter range like "E:G".`);
+        throw new Error(
+          `${EXPORT_ERROR_PREFIX}hideColumns["${sheetName}"] contains an invalid column ${JSON.stringify(column)} — use a 1-based index, a column letter, or a letter range like "E:G".`,
+        );
       }
     });
   });

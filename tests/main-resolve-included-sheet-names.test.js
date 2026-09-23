@@ -21,10 +21,7 @@ test('excludeSheets removes the given names, preserving source order', () => {
 });
 
 test('throws when both includeSheets and excludeSheets are given', () => {
-  assert.throws(
-    () => resolveIncludedSheetNames(ALL_SHEETS, ['Data'], ['Summary']),
-    /includeSheets or excludeSheets, not both/
-  );
+  assert.throws(() => resolveIncludedSheetNames(ALL_SHEETS, ['Data'], ['Summary']), /includeSheets or excludeSheets, not both/);
 });
 
 test('throws when includeSheets names an unknown sheet', () => {

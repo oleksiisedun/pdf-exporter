@@ -39,9 +39,7 @@ test('a zero individual margin override is respected, not treated as missing', (
 });
 
 test('extraExportParams are passed through and can override named options', () => {
-  const params = parseQuery(
-    buildPdfExportOptionsQueryString({ extraExportParams: { pagenum: 'CENTER', size: 'letter' } })
-  );
+  const params = parseQuery(buildPdfExportOptionsQueryString({ extraExportParams: { pagenum: 'CENTER', size: 'letter' } }));
   assert.equal(params.pagenum, 'CENTER');
   assert.equal(params.size, 'letter');
 });
