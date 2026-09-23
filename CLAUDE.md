@@ -17,7 +17,7 @@ A Drive copy is a new file ID, so it never inherits the source's `IMPORTRANGE` "
 Only `src/` is deployed (`.clasp.json` has `"rootDir": "src"`); tooling and docs stay at the repo root. Keep `src/` flat — clasp flattens subfolders into script file names.
 
 - `src/Main.js` — public API (`exportSpreadsheetToPdfBlob`, `exportSpreadsheetToPdfFile`) and sheet include/exclude resolution.
-- `src/SpreadsheetDuplicator.js` — Drive-copy creation and hiding sheets/columns on the copy. The copy is always placed explicitly in the source file's own parent folder (never Drive's default root) — `DriveUtils.js`'s orphan sweep only searches the source's parent folder(s), so a copy left in root would never get cleaned up.
+- `src/SpreadsheetDuplicator.js` — Drive-copy creation and hiding sheets/columns on the copy. The copy is always placed explicitly in the source file's own parent folder (never Drive's default root) — `DriveUtils.js`'s orphan sweep only searches the source's parent folder(s), so a copy left in root would never get cleaned up. Its `hideColumns` validation error reuses `Main.js`'s `EXPORT_ERROR_PREFIX` constant rather than repeating the literal — keep new public-API-facing errors on the same constant.
 - `src/ImportRangeFlattener.js` — IMPORTRANGE detection, the "Loading..." wait, and flattening cells on the copy (see above). Detection of "still loading" relies on matching the literal string `'Loading...'` (`IMPORTRANGE_LOADING_PLACEHOLDER`) — there's no Apps Script API for calculation status. This is unverified against locale/character variants; treat it as fragile if touching this file.
 - `src/PdfFetch.js` — builds the `export?format=pdf` query string from `PdfExportOptions` and fetches the PDF bytes.
 - `src/DriveUtils.js` — saving to a Drive folder, retrying deletes, sweeping orphaned temp copies left behind by hard-killed executions, and `getParentFoldersOrRoot` (shared by the sweep and by `SpreadsheetDuplicator.js`'s copy placement).
@@ -25,10 +25,12 @@ Only `src/` is deployed (`.clasp.json` has `"rootDir": "src"`); tooling and docs
 ## Commands
 
 ```bash
-npm run check      # Lint + type check (run after every edit; fast, offline)
-npm run lint       # ESLint only
-npm run typecheck  # tsc checkJs over src/ — resolves cross-file globals against @types/google-apps-script
-npm test           # node --test over tests/unit/ — pure-logic unit tests, run without asking
+npm run check         # Lint + type check + format check (run after every edit; fast, offline)
+npm run lint          # ESLint only
+npm run typecheck     # tsc checkJs over src/ — resolves cross-file globals against @types/google-apps-script
+npm run format        # Prettier --write (code/config files only, not CLAUDE.md/README.md)
+npm run format:check  # Prettier --check, part of npm run check
+npm test              # node --test over tests/ — pure-logic unit tests, run without asking
 clasp open   # Open this project in the Apps Script editor
 clasp push   # Push local changes to Apps Script (requires confirmation — see Deploying)
 clasp pull   # Pull changes made in the Apps Script editor back to local files
@@ -40,7 +42,11 @@ Cutting a new library deployment (**Deploy > New deployment** in the Apps Script
 
 Run `npm run check` after every edit for static checks (`no-undef` is off in ESLint because all files share one global scope — `typecheck` is what catches undefined cross-file references).
 
-Unit tests (`npm test`) cover the library's pure logic — sheet include/exclude resolution (`Main.js`), the IMPORTRANGE-formula regex (`ImportRangeFlattener.js`), and PDF query-string building (`PdfFetch.js`). Since `src/*.js` files share one global scope with no imports/exports, `tests/unit/helpers/load-src.js` loads a source file into a `vm` context and pulls out the functions under test — add new pure-logic tests the same way rather than restructuring `src/` to support `require`. Anything that touches `SpreadsheetApp`/`DriveApp`/`UrlFetchApp` still has no automated coverage — test that manually from the Apps Script editor, see README.md's "Testing" section for the checklist.
+Unit tests (`npm test`) cover the library's pure logic — sheet include/exclude resolution and timestamped file name formatting (`Main.js`), the IMPORTRANGE-formula regex and spill-region detection (`ImportRangeFlattener.js`), and PDF query-string building (`PdfFetch.js`). Since `src/*.js` files share one global scope with no imports/exports, `tests/helpers/load-src.js` loads a source file into a `vm` context and pulls out the functions under test — add new pure-logic tests the same way rather than restructuring `src/` to support `require`. Tests are flat in `tests/*.test.js` (no `tests/unit/` nesting, since this project has no E2E suite alongside it).
+
+A function loaded this way that returns a freshly-built object/array runs in the `vm` context's own realm, so `assert/strict`'s `deepEqual` fails on structurally-identical plain data with "same structure but are not reference-equal" — `tests/helpers/load-src.js` also exports `toPlain(value)` (a JSON round-trip) to normalize such a result before asserting on it. Only needed for functions returning objects/arrays; primitives (strings, booleans) aren't affected.
+
+Anything that touches `SpreadsheetApp`/`DriveApp`/`UrlFetchApp`/`Utilities.formatDate` still has no automated coverage — test that manually from the Apps Script editor, see README.md's "Testing" section for the checklist.
 
 ## Deploying
 
